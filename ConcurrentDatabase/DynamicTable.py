@@ -59,6 +59,16 @@ class DynamicTable:
         self.columns = []
         self._load_columns()
 
+    def get_entry_by_row(self, row_num: int):
+        """
+        Get an entry by the row number.
+        """
+        result = self.database.get(f"SELECT * FROM {self.table_name} LIMIT 1 OFFSET {row_num}")
+        if result:
+            return DynamicEntry(self, load_tuple=result[0])
+        else:
+            return None
+
     def get_row(self, **kwargs) -> typing.Optional[DynamicEntry]:
         """
         Get a row from the table.
@@ -114,18 +124,26 @@ class DynamicTable:
         else:
             return []
 
-    def get_all(self) -> List[DynamicEntry]:
+    def get_all(self, reverse=False) -> List[DynamicEntry]:
         """
         Get all rows from the table. This is not recommended for large tables.
         :return: The rows.
         """
-        result = self.database.get(f"SELECT * FROM {self.table_name}")
+        result = self.database.get(f"SELECT * FROM {self.table_name} ORDER BY rowid {'DESC' if reverse else 'ASC'}")
         if result:
             entries = [DynamicEntry(self, load_tuple=row) for row in result]
             self.entries.extend(entries)
             return entries
         else:
             return []
+
+    def custom_query(self, sql: str):
+        """
+        Run a custom query on the table.
+        :param sql: The query to run.
+        :return: The result of the query.
+        """
+        return self.database.get(sql)
 
     def add(self, **kwargs) -> DynamicEntry:
         """
@@ -268,11 +286,18 @@ class DynamicTable:
             raise KeyError(f"Column {key} not found in table {self.table_name}")
 
     def __iter__(self):
-        for column in self.columns:
-            yield column
+        """
+        Iterate over the entries in the table.
+        """
+        # Load all entries
+        return self.get_all()
 
     def __len__(self):
-        return len(self.columns)
+        """
+        Get the number of entries in the table.
+        """
+        sql = f"SELECT COUNT(*) FROM {self.table_name}"
+        return self.database.get(sql)[0][0]
 
     def __contains__(self, key):
         return key in self.columns

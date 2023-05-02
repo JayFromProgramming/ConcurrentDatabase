@@ -1,3 +1,6 @@
+from loguru import logger as logging
+
+
 class ColumnWrapper:
 
     def __init__(self, table, pragma):
@@ -13,8 +16,12 @@ class ColumnWrapper:
             self.table.primary_keys.append(self)
 
     def validate(self, value):
-        if self.not_null and value is None and self.default_value is None:
+
+        if (self.not_null and value is None) and self.default_value == "":
             raise ValueError(f"Column {self.name} cannot be null")
+        elif value is None:
+            return
+
         if isinstance(value, list):  # If the value is a range of values then validate each value in the range
             for item in value:
                 self.validate(item)
@@ -32,7 +39,7 @@ class ColumnWrapper:
                 raise ValueError(f"Column {self.name} must of duck type {self.type}")
         elif self.type == "TEXT":
             if not isinstance(value, str) and not isinstance(value, int) and not isinstance(value, float):
-                raise ValueError(f"Column {self.name} must of duck type {self.type}")
+                raise ValueError(f"Column {self.name} must of duck type {self.type} not {type(value)}")
         elif self.type == "BLOB":
             if not isinstance(value, bytes):
                 raise ValueError(f"Column {self.name} must of exact type {self.type}")
@@ -40,10 +47,11 @@ class ColumnWrapper:
             if not isinstance(value, bool):
                 raise ValueError(f"Column {self.name} must of exact type {self.type}")
         else:
-            raise ValueError(f"Column {self.name} has an unknown type {self.type}")
+            logging.warning(f"Unknown column type {self.type}")
 
     def __str__(self):
-        return f"[{self.position}]-{self.name}-{self.type}-{'NOT NULL' if self.not_null else 'NULL'}-{'PRIMARY KEY' if self.primary_key else ''}"
+        return f"[{self.position}]{'-PRIMARY KEY' if self.primary_key else ''}-{self.name}-({self.type})-" \
+               f"{'NOT NULL' if self.not_null else ''}-{'DEFAULT ' + self.default_value if self.default_value else ''}"
 
     def __repr__(self):
         return self.__str__()
@@ -87,4 +95,5 @@ class ColumnWrapper:
         elif self.type == "BLOB":
             return str(value)
         else:
-            raise TypeError(f"Unknown column type {self.type}")
+            logging.warning(f"Unknown column type {self.type}")
+            return str(value)

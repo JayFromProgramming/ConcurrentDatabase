@@ -5,16 +5,13 @@ from ConcurrentDatabase.Database import Database
 class DatabaseTests(unittest.TestCase):
 
     def setUp(self):
-        self.database = Database("unit_test.db")
+        self.database = Database(":memory:")
         self.table = self.database.create_table("test_table",
                                                 {"id": "INTEGER", "random": "INTEGER", "random2": "INTEGER",
                                                  "random3": "INTEGER"})
 
     def tearDown(self):
         self.database.close()
-        # Delete the database file
-        import os
-        os.remove("unit_test.db")
 
     def test_create_table(self):
         self.assertEqual(self.table, self.database.get_table("test_table"))

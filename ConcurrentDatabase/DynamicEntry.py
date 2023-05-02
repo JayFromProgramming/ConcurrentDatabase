@@ -23,6 +23,11 @@ class DynamicEntry:
             else:
                 raise KeyError(f"Column {key} does not exist in table {self.table.table_name}")
 
+        # Add columns that were not specified and have a default value
+        for column in self.columns:
+            if column.name not in self._values and column.default_value is not None:
+                self._values[column.name] = column.default_value
+
         self._previous_values = self._values.copy()
 
     def __getitem__(self, item):
@@ -93,7 +98,9 @@ class DynamicEntry:
             # Build the query
             changed_values = {}
             for key in self._values:
-                if self._values[key] != self._previous_values[key]:
+                if key in self._previous_values and self._values[key] != self._previous_values[key]:
+                    changed_values[key] = self._values[key]
+                elif key not in self._previous_values:
                     changed_values[key] = self._values[key]
             if len(changed_values) == 0:
                 return
@@ -120,7 +127,9 @@ class DynamicEntry:
             # Build the query
             changed_values = {}
             for key in self._values:
-                if self._values[key] != self._previous_values[key]:
+                if key in self._previous_values and self._values[key] != self._previous_values[key]:
+                    changed_values[key] = self._values[key]
+                elif key not in self._previous_values:
                     changed_values[key] = self._values[key]
             if len(changed_values) == 0:
                 return ""
