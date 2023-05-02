@@ -2,6 +2,8 @@ import datetime
 import sqlite3
 import typing
 
+from typing import List
+
 from .ColumnWrapper import ColumnWrapper
 from .DynamicEntry import DynamicEntry
 
@@ -87,7 +89,7 @@ class DynamicTable:
         else:
             return None
 
-    def get_rows(self, **kwargs) -> list[DynamicEntry]:
+    def get_rows(self, **kwargs) -> List[DynamicEntry]:
         """
         Get a set of rows from the table.
         :param kwargs: The filters to apply to the query.
@@ -112,7 +114,7 @@ class DynamicTable:
         else:
             return []
 
-    def get_all(self) -> list[DynamicEntry]:
+    def get_all(self) -> List[DynamicEntry]:
         """
         Get all rows from the table. This is not recommended for large tables.
         :return: The rows.

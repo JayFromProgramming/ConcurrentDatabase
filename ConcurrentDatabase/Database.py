@@ -1,6 +1,7 @@
 import sqlite3
 import threading
 from loguru import logger as logging
+from typing import List
 
 from .DynamicEntry import DynamicEntry
 from .DynamicTable import DynamicTable
@@ -38,7 +39,7 @@ class Database(sqlite3.Connection):
         self.create_table("table_versions", {"table_name": "TEXT", "version": "INTEGER"}, ["table_name"])
         self.table_version_table = self.get_table("table_versions")
 
-    def create_table(self, table_name: str, columns: dict, primary_keys: list[str] = None) -> DynamicTable:
+    def create_table(self, table_name: str, columns: dict, primary_keys: List[str] = None) -> DynamicTable:
         """
         Create a table in the database.
         :param table_name: The name of the table to create.
@@ -81,7 +82,7 @@ class Database(sqlite3.Connection):
                 raise KeyError(f"Table {table_name} not found in database {self.database_name}")
 
     def update_table(self, table_name: str, version: int,
-                     update_query: list[str] = None):
+                     update_query: List[str] = None):
         """
         Update a table in the database.
         :param table_name: The name of the table to update.

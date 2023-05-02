@@ -24,3 +24,10 @@ A simple sql wrapper for making a database be object oriented
 packages = ["ConcurrentDatabase"]
 python_requires = ">=3.8"
 install_requires = ["sqlite3", "loguru"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests"
+]
