@@ -1,13 +1,10 @@
-import sqlite3
 import unittest
-import ConcurrentDatabase.Database
-import time
 
 
 class DatabaseTests(unittest.TestCase):
 
     def setUp(self):
-        self.database = ConcurrentDatabase.Database("unit_test.db")
+        self.database = sqlite3_wrapper.Database("unit_test.db")
         self.table = self.database.create_table("test_table", {"id": "INTEGER", "random": "INTEGER", "random2": "INTEGER",
                                                                "random3": "INTEGER"})
 
