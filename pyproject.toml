@@ -5,13 +5,28 @@ build-backend = "setuptools.build_meta"
 [metadata]
 name = "ConcurrentDatabase"
 author = "Jay S"
-version = "0.0.1"
+author_email = ""
+version = "0.0.4"
 description = "A simple sql wrapper for making a database be object oriented"
-long_description = """"""
-description-file = "README.md"
+long_description = """
+# ConcurrentDatabase
+A simple sql wrapper for making a database be object oriented
+
+## Installation
+```bash
+pip install ConcurrentDatabase
+```
+
+## Usage
+```python
+from ConcurrentDatabase import Database
+
+db = Database("sqlite:///test.db")
+```
+"""
 long_description_content_type = "text/markdown"
 
 [options]
 packages = ["ConcurrentDatabase"]
-python_requires = ">=3.6"
+python_requires = ">=3.8"
 install_requires = ["sqlite3", "loguru"]
