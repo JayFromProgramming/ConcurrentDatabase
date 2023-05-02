@@ -27,7 +27,7 @@ class ColumnWrapper:
                 self.validate(item)
             return
         # Validate the duck type of the column is correct (aka if it is a string of an integer its still an integer)
-        if self.type == "INTEGER":
+        if self.type == "INTEGER" or self.type == "INT":
             try:
                 int(value)
             except ValueError:
@@ -37,7 +37,7 @@ class ColumnWrapper:
                 float(value)
             except ValueError:
                 raise ValueError(f"Column {self.name} must of duck type {self.type}")
-        elif self.type == "TEXT":
+        elif self.type == "TEXT" or self.type == "STRING":
             if not isinstance(value, str) and not isinstance(value, int) and not isinstance(value, float):
                 raise ValueError(f"Column {self.name} must of duck type {self.type} not {type(value)}")
         elif self.type == "BLOB":
@@ -84,9 +84,9 @@ class ColumnWrapper:
         """
         if value is None:
             return "NULL"
-        elif self.type == "TEXT":
+        elif self.type == "TEXT" or self.type == "STRING":
             return f"'{value}'"
-        elif self.type == "INTEGER":
+        elif self.type == "INTEGER" or self.type == "INT":
             return str(value)
         elif self.type == "BOOLEAN":
             return str(value)
@@ -95,5 +95,5 @@ class ColumnWrapper:
         elif self.type == "BLOB":
             return str(value)
         else:
-            logging.warning(f"Unknown column type {self.type}")
-            return str(value)
+            logging.warning(f"Unknown column type {self.type}, assuming TEXT")
+            return f"'{value}'"
