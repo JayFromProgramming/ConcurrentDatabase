@@ -7,6 +7,9 @@ name = "ConcurrentDatabase"
 author = "Jay S"
 version = "0.0.1"
 description = "A simple sql wrapper for making a database be object oriented"
+long_description = """"""
+description-file = "README.md"
+long_description_content_type = "text/markdown"
 
 [options]
 packages = ["ConcurrentDatabase"]
