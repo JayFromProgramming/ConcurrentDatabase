@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [metadata]
 name = "ConcurrentDatabase"
-author = "John Doe"
-description = "A Python package for doing cool things."
+author = "Jay S"
+description = "A simple sql wrapper for making a database be object oriented"
 
 [options]
 packages = find:
