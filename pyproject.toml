@@ -1,3 +1,12 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[metadata]
+name = "ConcurrentDatabase"
+author = "John Doe"
+description = "A Python package for doing cool things."
+
+[options]
+packages = find:
+install_requires = ["sqlite3", "loguru"]
