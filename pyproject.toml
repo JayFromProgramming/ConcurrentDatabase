@@ -5,8 +5,10 @@ build-backend = "setuptools.build_meta"
 [metadata]
 name = "ConcurrentDatabase"
 author = "Jay S"
+version = "0.0.1"
 description = "A simple sql wrapper for making a database be object oriented"
 
 [options]
-packages = find:
+packages = ["ConcurrentDatabase"]
+python_requires = ">=3.6"
 install_requires = ["sqlite3", "loguru"]
