@@ -9,9 +9,46 @@ A simple sql wrapper for making a database be object oriented
 pip install ConcurrentDatabase
 ```
 
-## Usage
+## Database Initialization
 ```python
-from ConcurrentDatabase import Database
+from ConcurrentDatabase.Database import Database
 
-db = Database("sqlite:///test.db")
+db = Database("test.db")
+
+table = db.create_table("example_table", {
+    "id": "INTEGER PRIMARY KEY",
+    "name": "TEXT",
+    "location": "TEXT"
+}, primary_keys=["id"])
+
+```
+
+## Inserting Data
+```python
+
+table = db.get_table("example_table") 
+
+table.add(name="Jay", location="USA")
+table.add(name="John", location="USA")
+```
+
+## Updating Data
+```python
+table = db.get_table("example_table")
+
+row = table.get_row(name="Jay")
+row["name"] = "JayFromProgramming"  # Changes are saved in memory until you call row.flush()
+row.flush()
+# or
+row.set(name="JayFromProgramming")  # Flushes immediately
+```
+
+## Deleting Data
+```python
+table = db.get_table("example_table")
+
+row = table.get_row(name="Jay")
+row.delete()
+# or
+table.delete(name="Jay")
 ```
