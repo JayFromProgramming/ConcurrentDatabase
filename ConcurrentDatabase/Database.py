@@ -1,5 +1,8 @@
 import sqlite3
+import sys
 import threading
+import time
+
 from loguru import logger as logging
 from typing import List
 
@@ -32,12 +35,17 @@ class CustomLock:
 class Database(sqlite3.Connection):
 
     def __init__(self, *args, **kwargs):
+        self.open = True
         super().__init__(*args, **kwargs)
         self.lock = CustomLock()
         self.tables = {}
         self.database_name = args[0]
         self.create_table("table_versions", {"table_name": "TEXT", "version": "INTEGER"}, ["table_name"])
         self.table_version_table = self.get_table("table_versions")
+
+        # Start the database garbage collector
+        self.gc_thread = threading.Thread(target=self.__gc_loop, daemon=True)
+        self.gc_thread.start()
 
     def create_table(self, table_name: str, columns: dict, primary_keys: List[str] = None) -> DynamicTable:
         """
@@ -46,6 +54,8 @@ class Database(sqlite3.Connection):
         :param columns: A dictionary of the columns to create in the table.
         :param primary_keys: A list of the primary keys in the table.
         """
+        if not self.open:
+            raise RuntimeError("Database is closed")
         if table_name != "table_versions":
             sql = f"CREATE TABLE IF NOT EXISTS {table_name} ("
             for column in columns:
@@ -70,6 +80,8 @@ class Database(sqlite3.Connection):
         :param table_name: The name of the table to get.
         :return: A DynamicTable object.
         """
+        if not self.open:
+            raise RuntimeError("Database is closed")
         if table_name in self.tables:
             return self.tables[table_name]
         else:
@@ -82,7 +94,9 @@ class Database(sqlite3.Connection):
                 raise KeyError(f"Table {table_name} not found in database {self.database_name}")
 
     def update_table(self, table_name: str, version: int,
-                     update_query: List[str] = None):
+                     update_query: List[str] = None) -> None:
+        if not self.open:
+            raise RuntimeError("Database is closed")
         """
         Update a table in the database.
         :param table_name: The name of the table to update.
@@ -120,6 +134,8 @@ class Database(sqlite3.Connection):
         Drop a table from the database.
         :param table_name: The name of the table to drop.
         """
+        if not self.open:
+            raise RuntimeError("Database is closed")
         # Check if the table exists
         if table_name not in self.tables:
             raise KeyError(f"Table {table_name} not found in database {self.database_name}")
@@ -137,22 +153,27 @@ class Database(sqlite3.Connection):
         :param kwargs: The keyword arguments to pass to the query.
         :return: A cursor object, use cursor.fetchall() to get the results. (The cursor is not thread safe)
         """
+        if not self.open:
+            raise RuntimeError("Database is closed")
         self.lock.acquire(timeout=5)
         cursor = super().cursor()
         try:
             cursor.execute(sql, *args)
         except sqlite3.OperationalError as e:
-            logging.info(f"Database Error: {e}")
+            # If the error is a syntax error, print the query
+            logging.error(f"Database Error: {e}")
+            if "syntax error" in str(e):
+                logging.error(f"Query: {sql}")
         finally:
             if kwargs.get("commit", True):
                 try:
                     super().commit()
                 except sqlite3.OperationalError as e:
-                    logging.info(f"Database Error: Commit failed {e}")
+                    logging.error(f"Database Error: Commit failed {e}")
             self.lock.release()
         return cursor
 
-    def batch_transaction(self, sql: list, *args, **kwargs):
+    def batch_transaction(self, sql: list, *args, **kwargs) -> sqlite3.Cursor:
         """
         Run a batch of queries on the database with thread safety.
         :param sql: The SQL queries to run.
@@ -160,24 +181,33 @@ class Database(sqlite3.Connection):
         :param kwargs: The keyword arguments to pass to the query.
         :return: A cursor object, use cursor.fetchall() to get the results. (The cursor is not thread safe)
         """
+        if not self.open:
+            raise RuntimeError("Database is not open")
         self.lock.acquire(timeout=5)
         cursor = super().cursor()
         try:
-            for query in sql:
+            for query in filter(None, sql):
                 cursor.execute(query, *args)
         except sqlite3.OperationalError as e:
-            logging.info(f"Database Error: {e}")
+            logging.error(f"Database Error: {e}")
         finally:
             if kwargs.get("commit", True):
                 try:
                     super().commit()
                 except sqlite3.OperationalError as e:
-                    logging.info(f"Database Error: Commit failed {e}")
+                    logging.error(f"Database Error: Commit failed {e}")
             self.lock.release()
         return cursor
 
-    def run_many(self, sql, *args, **kwargs):
-        print("run_many")
+    def run_many(self, sql, *args, **kwargs) -> sqlite3.Cursor:
+        """
+        Run a query on the database with thread safety.
+        :param sql: The SQL query to run.
+        :param args: The arguments to pass to the query.
+        :param kwargs: The keyword arguments to pass to the query.
+        """
+        if not self.open:
+            raise RuntimeError("Database is not open")
         self.lock.acquire()
         cursor = super().cursor()
         cursor.executemany(sql, *args)
@@ -185,18 +215,42 @@ class Database(sqlite3.Connection):
             try:
                 super().commit()
             except sqlite3.OperationalError as e:
-                logging.info(f"Database Error: Commit failed {e}")
+                logging.error(f"Database Error: Commit failed {e}")
         self.lock.release()
         return cursor
 
-    def get(self, sql, *args):
+    def close(self):
+        """
+        Close the connection to the database.
+        Will flush all cached data to the database.
+        """
+        for table in self.tables.values():
+            table.flush()
+        self.lock.acquire()
+        self.open = False
+        super().close()
+        self.lock.release()
+
+    def __del__(self):
+        self.close()
+
+    def get(self, sql, *args) -> List[dict]:
         cursor = self.run(sql, *args)
         result = cursor.fetchall()
         cursor.close()
         return result
 
-    def _gc(self):
+    def __gc(self):
+        for table_name in list(self.tables.keys()):
+            if sys.getrefcount(self.tables[table_name]) <= 2:
+                if self.tables[table_name].__gc_loop():
+                    self.tables.pop(table_name)
+
+    def __gc_loop(self):
         """
         Check the total number of references to each table object and delete any that are not being used.
         :return:
         """
+        while self.open:
+            self.__gc()
+            time.sleep(60)

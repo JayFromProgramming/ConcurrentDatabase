@@ -1,3 +1,6 @@
+
+from loguru import logger as logging
+
 class DynamicEntry:
     """
     A class that allows you to access an entry in a database as if it were an object.
@@ -94,7 +97,11 @@ class DynamicEntry:
         Flushes the changes to the database if there are any
         :return:
         """
+
         if self._dirty:
+            if not self.database.open:
+                logging.warning(f"Unable to flush changes to {self.table.table_name} because the database is closed")
+                return
             # Build the query
             changed_values = {}
             for key in self._values:
@@ -216,13 +223,35 @@ class DynamicEntry:
 
     def __eq__(self, other):
         if isinstance(other, DynamicEntry):
-            return self.primary_keys == other.primary_keys
+            if self.table.table_name != other.table.table_name:
+                raise ValueError("Cannot compare entries from different tables")
+            for column in self.columns:
+                if column not in other.columns:  # This would be unexpected as they should be from the same table
+                    raise TypeError(f"Unexpected column {column.name} in entry {other}")
+                if self._values[column.name] != other._values[column.name]:
+                    return False
+            return True
         elif isinstance(other, tuple):
-            return self.primary_keys == other
+            if len(other) != len(self.columns):
+                raise ValueError("Tuple must be the same length as the number of columns in the table")
+            for i, column in enumerate(self.columns):
+                if self._values[column.name] != other[i]:
+                    return False
+            return True
         elif isinstance(other, dict):
-            if self.primary_keys:
-                return self.primary_keys == tuple(other[key] for key in self.primary_keys)
-            else:  # compare all values
-                return self._values == other
+            for key in other:
+                if key not in self._values:
+                    raise KeyError(f"Key {key} not in entry")
+                if self._values[key] != other[key]:
+                    return False
+            return True
         else:
             raise TypeError(f"Cannot compare DynamicEntry to {type(other)}")
+
+    def __del__(self):
+        """
+        Called when the DynamicEntry object is garbage collected, flushes the entry to the database to prevent data loss
+        """
+        if self._dirty:
+            self.flush()
+

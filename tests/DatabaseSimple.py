@@ -23,6 +23,11 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertEqual(self.table.get_row(id=1), row)
 
+    def test_entry_cache(self):
+        row = self.table.add(id=1, random=4, random2=5, random3=6)
+        row2 = self.table.get_row(id=1)
+        self.assertEqual(id(row), id(row2))
+
     def test_alter_table(self):
         table = self.database.create_table("test_table", {"id": "INTEGER", "random": "INTEGER", "random2": "INTEGER",
                                                           "random3": "INTEGER"})

@@ -1,11 +1,14 @@
 import datetime
 import sqlite3
+import sys
 import typing
 
 from typing import List
 
 from .ColumnWrapper import ColumnWrapper
 from .DynamicEntry import DynamicEntry
+
+from loguru import logger as logging
 
 
 class DynamicTable:
@@ -124,6 +127,30 @@ class DynamicTable:
         else:
             return []
 
+    def select(self, where: str, limit: int = -1, offset: int = 0, order_by: str = None) -> List[DynamicEntry]:
+        """
+        Select rows from the table.
+        :param where: The where clause of the query.
+        :param limit: The limit of the query.
+        :param offset: The offset of the query.
+        :param order_by: The order by clause of the query.
+        :return: The rows.
+        :Note this method has no query validation
+        """
+        result = self.database.get(f"SELECT * FROM {self.table_name} WHERE {where}"
+                                   f"{f' ORDER BY {order_by}' if order_by else ''}"
+                                   f"{f' LIMIT {limit}' if limit > 0 else ''}"
+                                   f"{f' OFFSET {offset}' if offset > 0 else ''}")
+        if result:
+            # Check if some of the entries are already loaded
+            entries = [DynamicEntry(self, load_tuple=row) for row in result]
+            for entry in entries:
+                if entry not in self.entries:
+                    self.entries.append(entry)
+            return entries
+        else:
+            return []
+
     def get_all(self, reverse=False) -> List[DynamicEntry]:
         """
         Get all rows from the table. This is not recommended for large tables.
@@ -137,7 +164,7 @@ class DynamicTable:
         else:
             return []
 
-    def custom_query(self, sql: str):
+    def custom_query(self, sql: str) -> sqlite3.Cursor:
         """
         Run a custom query on the table.
         :param sql: The query to run.
@@ -160,14 +187,16 @@ class DynamicTable:
         for column in kwargs:
             sql += f"{column}, "
         sql = sql[:-2] + ") VALUES ("
-        for column in kwargs:
+        for _ in kwargs:
             sql += "?, "
         sql = sql[:-2] + ")"
         try:
             self.database.run(sql, tuple(kwargs.values()))
         except sqlite3.IntegrityError as e:
             raise ValueError(f"Integrity error: {e}")
-        return DynamicEntry(self, **kwargs)
+        entry = DynamicEntry(self, **kwargs)
+        self.entries.append(entry)
+        return entry
 
     def update_or_add(self, **kwargs) -> DynamicEntry:
         """
@@ -307,3 +336,22 @@ class DynamicTable:
 
     def __str__(self):
         return f"DynamicTable({self.table_name}, {self.database})"
+
+    def __del__(self):
+        # Check if the database is still open
+        if self.database.open:
+            self.flush()
+            logging.debug(f"{self.table_name} flushed to database to be garbage collected.")
+
+    def __gc(self) -> bool:
+        """
+        Check for any entries that no longer have any external references and remove them.
+        :return: False if there are still references to entries from the table, True if it is safe to GC the table.
+        """
+        still_referenced = False
+        for i in range(len(self.entries)):
+            if sys.getrefcount(self.entries[i]) <= 2:
+                del self.entries[i]
+            else:
+                still_referenced = True
+        return not still_referenced
