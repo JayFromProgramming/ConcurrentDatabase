@@ -156,11 +156,12 @@ class DynamicTable:
         Get all rows from the table. This is not recommended for large tables.
         :return: The rows.
         """
-        result = self.database.get(f"SELECT * FROM {self.table_name} ORDER BY rowid {'DESC' if reverse else 'ASC'}")
-        if result:
-            entries = [DynamicEntry(self, load_tuple=row) for row in result]
-            self.entries.extend(entries)
-            return entries
+        db_load = self.database.get(f"SELECT * FROM {self.table_name} ORDER BY rowid {'DESC' if reverse else 'ASC'}")
+        if db_load:  # Append any new entries to self.entries and don't overwrite pre-existing entries
+            for entry in self.entries:
+                if entry not in db_load:
+                    db_load.append(entry)
+            return self.entries
         else:
             return []
 
@@ -295,6 +296,16 @@ class DynamicTable:
         else:
             return f"{column.name} = {column.safe_value(value)}"
 
+    def has_dirty_entries(self) -> bool:
+        """
+        Check if there are any dirty entries.
+        :return: True if there are dirty entries, False otherwise.
+        """
+        for entry in self.entries:
+            if entry.is_dirty():
+                return True
+        return False
+
     def __getitem__(self, key):
         if key in self.columns:
             return self.database.get(f"SELECT {key} FROM {self.table_name}")
@@ -339,9 +350,11 @@ class DynamicTable:
 
     def __del__(self):
         # Check if the database is still open
-        if self.database.open:
-            self.flush()
-            logging.debug(f"{self.table_name} flushed to database to be garbage collected.")
+        if self.has_dirty_entries():
+            try:
+                self.flush()
+            except RuntimeError:
+                pass  # Database is closed, flush was unsuccessful
 
     def __gc(self) -> bool:
         """

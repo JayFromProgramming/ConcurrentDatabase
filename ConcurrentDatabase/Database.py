@@ -31,21 +31,28 @@ class CustomLock:
         self.queued_lock_count -= 1
         self.lock.release()
 
+    def locked(self):
+        return self.lock.locked()
+
 
 class Database(sqlite3.Connection):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, no_gc=False, **kwargs):
+        super().__init__(*args, check_same_thread=False, **kwargs)
         self.open = True
-        super().__init__(*args, **kwargs)
         self.lock = CustomLock()
         self.tables = {}
         self.database_name = args[0]
         self.create_table("table_versions", {"table_name": "TEXT", "version": "INTEGER"}, ["table_name"])
         self.table_version_table = self.get_table("table_versions")
 
+        # sqlite3.enable_callback_tracebacks(True)
+        # super().set_trace_callback(logging.debug)
+
         # Start the database garbage collector
-        self.gc_thread = threading.Thread(target=self.__gc_loop, daemon=True)
-        self.gc_thread.start()
+        if not no_gc:
+            self.gc_thread = threading.Thread(target=self.__gc_loop, daemon=True)
+            self.gc_thread.start()
 
     def create_table(self, table_name: str, columns: dict, primary_keys: List[str] = None) -> DynamicTable:
         """
@@ -173,7 +180,7 @@ class Database(sqlite3.Connection):
             self.lock.release()
         return cursor
 
-    def batch_transaction(self, sql: list, *args, **kwargs) -> sqlite3.Cursor:
+    def batch_transaction(self, transactions: list, *args, **kwargs) -> sqlite3.Cursor:
         """
         Run a batch of queries on the database with thread safety.
         :param sql: The SQL queries to run.
@@ -186,8 +193,8 @@ class Database(sqlite3.Connection):
         self.lock.acquire(timeout=5)
         cursor = super().cursor()
         try:
-            for query in filter(None, sql):
-                cursor.execute(query, *args)
+            sql = ";\n".join(filter(None, transactions))
+            cursor.executescript(sql)
         except sqlite3.OperationalError as e:
             logging.error(f"Database Error: {e}")
         finally:
@@ -225,14 +232,15 @@ class Database(sqlite3.Connection):
         Will flush all cached data to the database.
         """
         for table in self.tables.values():
-            table.flush()
+            del table
         self.lock.acquire()
-        self.open = False
         super().close()
+        self.open = False
         self.lock.release()
 
     def __del__(self):
-        self.close()
+        if self.open:
+            self.close()
 
     def get(self, sql, *args) -> List[dict]:
         cursor = self.run(sql, *args)

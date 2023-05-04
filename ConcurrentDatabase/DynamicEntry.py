@@ -1,5 +1,5 @@
-
 from loguru import logger as logging
+
 
 class DynamicEntry:
     """
@@ -11,6 +11,7 @@ class DynamicEntry:
         self.table = table
         self.database = table.database
         self.primary_keys = table.primary_keys
+        self._rowid = None
         self._values = {}
         self._previous_values = {}
         self._dirty = False
@@ -57,14 +58,14 @@ class DynamicEntry:
         """
         if isinstance(key, int):  # Select by index
             if len(self.columns) > key >= 0:
-                self._values[self.columns[key].name] = value
                 self._dirty = True
+                self._values[self.columns[key].name] = value
             else:
                 raise IndexError(f"Column index {key} is out of range for table {self.table.table_name}")
         elif isinstance(key, str):  # Select by column name
             if key in self.columns:
-                self._values[key] = value
                 self._dirty = True
+                self._values[key] = value
             else:
                 raise KeyError(f"Column {key} does not exist in table {self.table.table_name}")
         else:
@@ -146,6 +147,7 @@ class DynamicEntry:
                 sql += f"{key} = {column.safe_value(value)}, "
             sql = sql[:-2] if sql.endswith(", ") else sql
             sql += f" WHERE {self._entry_where_clause()}"
+            self._dirty = False
             return sql
 
     def refresh(self):
@@ -165,6 +167,9 @@ class DynamicEntry:
         sql = f"DELETE FROM {self.table.table_name} WHERE {self._entry_where_clause()}"
         self.database.run(sql, tuple(primary_key_values))
         del self
+
+    def is_dirty(self):
+        return self._dirty
 
     def _entry_where_clause(self):
         """
@@ -206,9 +211,14 @@ class DynamicEntry:
         string = f"{self.table.table_name}("
         for i, column in enumerate(self.columns):
             if column.primary_key:
-                string += f"*{column.name}={self._values[column.name]}"
+                string += f"^{column.name}={self._values[column.name]}"
             else:
-                string += f"{column.name}={self._values[column.name] if column.name in self._values else None}"
+                # Check if the column is dirty
+                if column.name in self._previous_values and \
+                        self._values[column.name] != self._previous_values[column.name]:
+                    string += f"*{column.name}={self._values[column.name] if column.name in self._values else None}"
+                else:
+                    string += f"{column.name}={self._values[column.name] if column.name in self._values else None}"
             if i != len(self.columns) - 1:
                 string += ", "
         string += ")"
@@ -254,4 +264,3 @@ class DynamicEntry:
         """
         if self._dirty:
             self.flush()
-

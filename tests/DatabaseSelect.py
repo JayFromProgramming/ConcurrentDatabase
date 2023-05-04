@@ -9,7 +9,7 @@ class DatabaseTests(unittest.TestCase):
         self.database = Database(":memory:")
         self.table = self.database.create_table("test_table",
                                                 {"id": "INTEGER", "random": "INTEGER", "random2": "INTEGER",
-                                                 "random3": "INTEGER"})
+                                                 "random3": "INTEGER"}, primary_keys=["id"])
 
     def tearDown(self):
         self.database.close()
