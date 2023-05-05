@@ -19,17 +19,30 @@ class DynamicTable:
     def __init__(self, table_name, database):
         self.table_name = table_name
         self.database = database  # type: Database  # The database that this table is in
+        self.table_links = self.database.table_links
         self.columns = []  # type: list[ColumnWrapper]  # A list of all the columns in the table
         self.entries = []  # type: list[DynamicEntry]  # A list of all the entries that have been loaded
         self.primary_keys = []  # type: list[ColumnWrapper]  # A list of the columns that are primary keys
+
         self._load_columns()
 
     def _load_columns(self):
         sql = f"PRAGMA table_info({self.table_name})"  # Get the columns of the table
-        result = self.database.get(sql)
-        for row in result:
+        columns = self.database.get(sql)
+        for row in columns:
             column = ColumnWrapper(self, row)
             self.columns.append(column)
+
+    def update_table_relationships(self, table_relationships: dict):
+        """
+        Load all the foreign tables.
+        :return: None
+        """
+        if table_relationships is None:
+            return
+        for table in table_relationships:
+            # Check if the foreign table is already loaded
+            pass
 
     def _validate_columns(self, **kwargs):
         """
@@ -242,7 +255,8 @@ class DynamicTable:
                 column = self.columns[self.columns.index(column_name)]
                 sql += self._create_filter(column, kwargs[column]) + " AND "
             sql = sql[:-5]
-        self.database.run(sql)
+        result = self.database.run(sql)
+        return result
 
     def delete_many(self, **kwargs):
         """
@@ -279,6 +293,14 @@ class DynamicTable:
         for entry in self.entries:
             queries.append(entry.flush_many())
         self.database.batch_transaction(queries)
+
+    def get_column(self, column_name: str) -> ColumnWrapper:
+        """
+        Get a column by name.
+        :param column_name: The name of the column.
+        :return: The column.
+        """
+        return self.columns[self.columns.index(column_name)]
 
     def _create_filter(self, column, value):
         """

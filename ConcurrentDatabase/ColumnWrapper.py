@@ -5,6 +5,8 @@ class ColumnWrapper:
 
     def __init__(self, table, pragma):
         self.table = table
+
+        # Result of pragma table_info (position, name, type, notnull, default_value, primary_key)
         self.position = pragma[0]  # type: int
         self.name = pragma[1]  # type: str
         self.type = pragma[2].upper()  # type: str
@@ -12,8 +14,16 @@ class ColumnWrapper:
         self.default_value = pragma[4]  # type: str
         self.primary_key = pragma[5]  # type: int
 
+        # Used for foreign keys
+        self.linked_table = None  # type: DynamicTable or None
+        self.linked_column = None  # type: ColumnWrapper or None
+
         if self.primary_key:
             self.table.primary_keys.append(self)
+
+    def attach_linked_table(self, linked_table, linked_column):
+        self.linked_table = linked_table
+        self.linked_column = linked_column
 
     def validate(self, value):
 
@@ -50,8 +60,9 @@ class ColumnWrapper:
             logging.warning(f"Unknown column type {self.type}")
 
     def __str__(self):
-        return f"[{self.position}]{'-PRIMARY KEY' if self.primary_key else ''}-{self.name}-({self.type})-" \
-               f"{'NOT NULL' if self.not_null else ''}-{'DEFAULT ' + self.default_value if self.default_value else ''}"
+        return f"[{self.position}]{'-PRIMARY KEY' if self.primary_key else ''}-{self.name}-({self.type})" \
+               f"{'-NOT NULL' if self.not_null else ''}" \
+               f"{'-DEFAULT ' + self.default_value if self.default_value else ''}"
 
     def __repr__(self):
         return self.__str__()

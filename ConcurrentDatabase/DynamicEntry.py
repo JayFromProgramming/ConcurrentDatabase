@@ -1,3 +1,5 @@
+import time
+
 from loguru import logger as logging
 
 
@@ -156,7 +158,10 @@ class DynamicEntry:
         :return:
         """
         sql = f"SELECT * FROM {self.table.table_name} WHERE {self._entry_where_clause()}"
-        self._values = {self.columns[i].name: value for i, value in enumerate(self.database.run(sql).fetchone())}
+        result = self.database.run(sql)
+        if result.rowcount == 0:
+            raise KeyError(f"Entry does not exist in table {self.table.table_name}")
+        self._values = {self.columns[i].name: value for i, value in enumerate(result.fetchone())}
 
     def delete(self):
         """

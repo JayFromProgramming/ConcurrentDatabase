@@ -35,11 +35,58 @@ class CustomLock:
         return self.lock.locked()
 
 
+class CreateTableLink:
+
+    def __init__(self, target_table: str = None, target_key: str = None,
+                 source_table: str = None, source_key: str = None,
+                 on_update: str = "CASCADE", on_delete: str = "CASCADE"):
+        self.target_table = target_table
+        self.target_key = target_key
+        self.source_table = source_table
+        self.source_key = source_key
+        self.on_update = on_update
+        self.on_delete = on_delete
+
+    def on_create_sql(self) -> str:
+        """ Returns the SQL to create the foreign key """
+        return f"FOREIGN KEY ({self.source_key}) REFERENCES {self.target_table}({self.target_key})" \
+               f" ON UPDATE {self.on_update} ON DELETE {self.on_delete}"
+
+    def __str__(self):
+        return f"{self.source_table}.{self.source_key} -> {self.target_table}.{self.target_key}"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class TableLink:
+
+    def __init__(self, database, child, pragma):
+        self.database = database
+        self.child_table = self.database.get_table(child)
+        self.parent_table = self.database.get_table(pragma[2])
+        self.child_key = self.child_table.get_column(pragma[3])
+        self.parent_key = self.parent_table.get_column(pragma[4])
+        self.on_update = pragma[5]
+        self.on_delete = pragma[6]
+
+        self.child_key.attach_linked_table(self.parent_table, self.parent_key)
+        self.parent_key.attach_linked_table(self.child_table, self.child_key)
+
+    def __str__(self):
+        return f"{self.parent_table.table_name}.{self.parent_key.name} -> " \
+               f"{self.child_table.table_name}.{self.child_key.name}"
+
+    def __repr__(self):
+        return self.__str__()
+
+
 class Database(sqlite3.Connection):
 
     def __init__(self, *args, no_gc=False, **kwargs):
         super().__init__(*args, check_same_thread=False, **kwargs)
         self.open = True
+        self.table_links = []
         self.lock = CustomLock()
         self.tables = {}
         self.database_name = args[0]
@@ -54,32 +101,58 @@ class Database(sqlite3.Connection):
             self.gc_thread = threading.Thread(target=self.__gc_loop, daemon=True)
             self.gc_thread.start()
 
-    def create_table(self, table_name: str, columns: dict, primary_keys: List[str] = None) -> DynamicTable:
+    def _update_table_links(self):
+        # Get all table names
+        relations = []
+        table_names = self.get("SELECT name FROM sqlite_master WHERE type='table'")
+        # Get all foreign keys for each table
+        for table_name in table_names:
+            table_name = table_name[0]
+            result = self.get(f"PRAGMA foreign_key_list({table_name})")
+            if result:
+                for row in result:
+                    child_table = table_name
+                    relations.append(TableLink(self, child_table, row))
+        self.table_links = relations
+
+    def create_table(self, table_name: str, columns: dict, primary_keys: List[str] = None,
+                     linked_tables: list = None) -> DynamicTable:
         """
         Create a table in the database.
         :param table_name: The name of the table to create.
         :param columns: A dictionary of the columns to create in the table.
         :param primary_keys: A list of the primary keys in the table.
+        :param linked_tables: A list of tables to link to this table.
         """
         if not self.open:
             raise RuntimeError("Database is closed")
         if table_name != "table_versions":
-            sql = f"CREATE TABLE IF NOT EXISTS {table_name} ("
-            for column in columns:
-                sql += f"{column} {columns[column]}, "
-            if primary_keys:
-                sql += f"PRIMARY KEY ({', '.join(primary_keys)}), "
-            sql = sql[:-2] + ")"
-            self.run(sql)
-            # Add the table to the tables dictionary
-            self.tables[table_name] = DynamicTable(table_name, self)
-            # Add the table to the table_versions table (unless this is the table_versions table)
-            if not self.table_version_table.get_row(table_name=table_name):
-                self.table_version_table.update_or_add(table_name=table_name, version=0)
+            self._create_table(table_name, columns, primary_keys, linked_tables)
         else:
             self.run(f"CREATE TABLE IF NOT EXISTS table_versions (table_name TEXT PRIMARY KEY, version INTEGER)")
             self.tables[table_name] = DynamicTable(table_name, self)
         return self.tables[table_name]
+
+    def _create_table(self, table_name: str, columns: dict,
+                      primary_keys: List[str] = None, linked_tables: list = None):
+        sql = f"CREATE TABLE IF NOT EXISTS {table_name} ("
+        for column in columns:
+            sql += f"{column} {columns[column]}, "
+        if primary_keys:
+            sql += f"PRIMARY KEY ({', '.join(primary_keys)}), "
+        sql = sql[:-2]
+        if linked_tables:
+            for linked_table in linked_tables:
+                linked_table.child_table = table_name
+                sql += ", " + linked_table.on_create_sql()
+        sql += ")"
+        self.run(sql)
+        self._update_table_links()
+        # Add the table to the tables dictionary
+        self.tables[table_name] = DynamicTable(table_name, self)
+        # Add the table to the table_versions table (unless this is the table_versions table)
+        if not self.table_version_table.get_row(table_name=table_name):
+            self.table_version_table.update_or_add(table_name=table_name, version=0)
 
     def get_table(self, table_name: str) -> DynamicTable:
         """
@@ -96,6 +169,7 @@ class Database(sqlite3.Connection):
             result = self.run(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'").fetchall()
             if result:
                 self.tables[table_name] = DynamicTable(table_name, self)
+                self._update_table_links()
                 return self.tables[table_name]
             else:
                 raise KeyError(f"Table {table_name} not found in database {self.database_name}")
