@@ -92,6 +92,11 @@ class DynamicEntry:
         if key in self.columns:
             self.refresh()
             return self._values[key]
+        # If the key is not a column, check if it is a name of a foreign table
+        elif key in [foreign_table.table_name for foreign_table in self.table.foreign_tables]:
+            foreign_table = [foreign_table for foreign_table in
+                             self.table.foreign_tables if foreign_table.table_name == key][0]
+            return foreign_table.get_related_entries(self)
         else:
             raise KeyError(f"Column {key} does not exist in table {self.table.table_name}")
 
@@ -216,14 +221,15 @@ class DynamicEntry:
         string = f"{self.table.table_name}("
         for i, column in enumerate(self.columns):
             if column.primary_key:
-                string += f"^{column.name}={self._values[column.name]}"
+                string += "*"
+            if column.is_foreign_key:
+                string += "!" if column.is_child else "¡"
+            # Check if the column is dirty
+            if column.name in self._previous_values and \
+                    self._values[column.name] != self._previous_values[column.name]:
+                string += f"*{column.name}={self._values[column.name] if column.name in self._values else None}"
             else:
-                # Check if the column is dirty
-                if column.name in self._previous_values and \
-                        self._values[column.name] != self._previous_values[column.name]:
-                    string += f"*{column.name}={self._values[column.name] if column.name in self._values else None}"
-                else:
-                    string += f"{column.name}={self._values[column.name] if column.name in self._values else None}"
+                string += f"{column.name}={self._values[column.name] if column.name in self._values else None}"
             if i != len(self.columns) - 1:
                 string += ", "
         string += ")"

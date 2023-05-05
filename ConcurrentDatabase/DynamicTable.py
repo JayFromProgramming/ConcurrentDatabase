@@ -19,12 +19,21 @@ class DynamicTable:
     def __init__(self, table_name, database):
         self.table_name = table_name
         self.database = database  # type: Database  # The database that this table is in
-        self.table_links = self.database.table_links
         self.columns = []  # type: list[ColumnWrapper]  # A list of all the columns in the table
         self.entries = []  # type: list[DynamicEntry]  # A list of all the entries that have been loaded
         self.primary_keys = []  # type: list[ColumnWrapper]  # A list of the columns that are primary keys
-
         self._load_columns()
+
+        self.parent_tables = []  # type: list[DynamicTable]  # A list of all the tables that reference this table
+        self.child_tables = []  # type: list[DynamicTable]  # A list of all the tables that this table references
+
+    @property
+    def foreign_tables(self):
+        """
+        Get a list of all the tables that this table references.
+        :return: The list of tables.
+        """
+        return self.child_tables + self.parent_tables
 
     def _load_columns(self):
         sql = f"PRAGMA table_info({self.table_name})"  # Get the columns of the table
@@ -32,17 +41,6 @@ class DynamicTable:
         for row in columns:
             column = ColumnWrapper(self, row)
             self.columns.append(column)
-
-    def update_table_relationships(self, table_relationships: dict):
-        """
-        Load all the foreign tables.
-        :return: None
-        """
-        if table_relationships is None:
-            return
-        for table in table_relationships:
-            # Check if the foreign table is already loaded
-            pass
 
     def _validate_columns(self, **kwargs):
         """
@@ -140,6 +138,51 @@ class DynamicTable:
         else:
             return []
 
+    def get_all(self, reverse=False) -> List[DynamicEntry]:
+        """
+        Get all rows from the table. This is not recommended for large tables.
+        :return: The rows.
+        """
+        db_load = self.database.get(f"SELECT * FROM {self.table_name} ORDER BY rowid {'DESC' if reverse else 'ASC'}")
+        if db_load:  # Append any new entries to self.entries and don't overwrite pre-existing entries
+            for entry in self.entries:
+                if entry not in db_load:
+                    db_load.append(entry)
+            return self.entries
+        else:
+            return []
+
+    def get_related_entries(self, entry: DynamicEntry) -> List[DynamicEntry]:
+        """
+        Get all entries that reference the given entry in this table.
+        :param foreign_key: The foreign key that references the entry.
+        :param entry: The entry that is referenced.
+        :return: The entries from this table that reference the given entry.
+        """
+        # Determine which foreign keys reference the entry
+        source_table = entry.table
+        # Find the foreign key from this table to the source table
+        link = [link for link in self.database.table_links if link.has_link(self, source_table)]
+        if len(link) == 0:
+            raise ValueError(f"Table [{self.table_name}] does not reference table [{source_table.table_name}]")
+        elif len(link) > 1:
+            raise ValueError(f"Table [{self.table_name}] has multiple links to table [{source_table.table_name}]")
+        else:
+            link = link[0]
+        # Get the foreign key from this table to the source table
+        local_key, foreign_key = link.get_foreign_key(self)
+        # Get the entries that reference the entry
+        sql = f"SELECT * FROM {self.table_name} WHERE {local_key.name} = {entry[foreign_key.name]}"
+        result = self.database.get(sql)
+        if result:
+            entries = [DynamicEntry(self, load_tuple=row) for row in result]
+            for entry in entries:
+                if entry not in self.entries:
+                    self.entries.append(entry)
+            return entries
+        else:
+            return []
+
     def select(self, where: str, limit: int = -1, offset: int = 0, order_by: str = None) -> List[DynamicEntry]:
         """
         Select rows from the table.
@@ -161,20 +204,6 @@ class DynamicTable:
                 if entry not in self.entries:
                     self.entries.append(entry)
             return entries
-        else:
-            return []
-
-    def get_all(self, reverse=False) -> List[DynamicEntry]:
-        """
-        Get all rows from the table. This is not recommended for large tables.
-        :return: The rows.
-        """
-        db_load = self.database.get(f"SELECT * FROM {self.table_name} ORDER BY rowid {'DESC' if reverse else 'ASC'}")
-        if db_load:  # Append any new entries to self.entries and don't overwrite pre-existing entries
-            for entry in self.entries:
-                if entry not in db_load:
-                    db_load.append(entry)
-            return self.entries
         else:
             return []
 

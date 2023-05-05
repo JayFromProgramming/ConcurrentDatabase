@@ -15,13 +15,17 @@ class ColumnWrapper:
         self.primary_key = pragma[5]  # type: int
 
         # Used for foreign keys
+        self.is_foreign_key = False  # type: bool
+        self.is_child = False  # type: bool
         self.linked_table = None  # type: DynamicTable or None
         self.linked_column = None  # type: ColumnWrapper or None
 
         if self.primary_key:
             self.table.primary_keys.append(self)
 
-    def attach_linked_table(self, linked_table, linked_column):
+    def attach_linked_table(self, linked_table, linked_column, child: bool = False):
+        self.is_foreign_key = True
+        self.is_child = child
         self.linked_table = linked_table
         self.linked_column = linked_column
 

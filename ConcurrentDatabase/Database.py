@@ -70,8 +70,23 @@ class TableLink:
         self.on_update = pragma[5]
         self.on_delete = pragma[6]
 
-        self.child_key.attach_linked_table(self.parent_table, self.parent_key)
+        self.child_key.attach_linked_table(self.parent_table, self.parent_key, child=True)
         self.parent_key.attach_linked_table(self.child_table, self.child_key)
+
+        self.child_table.parent_tables.append(self.parent_table)
+        self.parent_table.child_tables.append(self.child_table)
+
+    def has_link(self, table1, table2):
+        return (self.parent_table == table1 and self.child_table == table2) or \
+               (self.child_table == table1 and self.parent_table == table2)
+
+    def get_foreign_key(self, table):
+        if table == self.parent_table:
+            return self.parent_key, self.child_key
+        elif table == self.child_table:
+            return self.child_key, self.parent_key
+        else:
+            raise ValueError(f"Table {table} is not linked to {self}")
 
     def __str__(self):
         return f"{self.parent_table.table_name}.{self.parent_key.name} -> " \
@@ -147,9 +162,9 @@ class Database(sqlite3.Connection):
                 sql += ", " + linked_table.on_create_sql()
         sql += ")"
         self.run(sql)
-        self._update_table_links()
         # Add the table to the tables dictionary
         self.tables[table_name] = DynamicTable(table_name, self)
+        self._update_table_links()
         # Add the table to the table_versions table (unless this is the table_versions table)
         if not self.table_version_table.get_row(table_name=table_name):
             self.table_version_table.update_or_add(table_name=table_name, version=0)
