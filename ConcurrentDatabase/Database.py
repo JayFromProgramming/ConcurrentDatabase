@@ -49,8 +49,9 @@ class CreateTableLink:
 
     def on_create_sql(self) -> str:
         """ Returns the SQL to create the foreign key """
-        return f"FOREIGN KEY ({self.source_key}) REFERENCES {self.target_table}({self.target_key})" \
-               f" ON UPDATE {self.on_update} ON DELETE {self.on_delete}"
+        return f"CONSTRAINT fk_{self.target_table} FOREIGN KEY ({self.source_key}) " \
+               f"REFERENCES {self.target_table}({self.target_key}) " \
+               f"ON DELETE {self.on_delete} ON UPDATE {self.on_update}"
 
     def __str__(self):
         return f"{self.source_table}.{self.source_key} -> {self.target_table}.{self.target_key}"
@@ -89,7 +90,9 @@ class TableLink:
             raise ValueError(f"Table {table} is not linked to {self}")
 
     def __str__(self):
-        return f"{self.parent_table.table_name}.{self.parent_key.name} -> " \
+        return f"{self.parent_table.table_name}.{self.parent_key.name} " \
+               f"{'<->' if self.on_update == 'NO ACTION' else '->'} " \
+               f"{'*' if self.on_delete == 'CASCADE' else ''}" \
                f"{self.child_table.table_name}.{self.child_key.name}"
 
     def __repr__(self):

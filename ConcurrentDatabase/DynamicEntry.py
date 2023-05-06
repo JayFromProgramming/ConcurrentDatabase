@@ -87,7 +87,11 @@ class DynamicEntry:
                 raise KeyError(f"Column {key} does not exist in table {self.table.table_name}")
         self.flush()
 
-    def get(self, key):
+    def get(self, key) -> any:
+        """
+        Gets the value of a particular column of this entry or if there is a ForeignKey constraint, gets the entry(s)
+        that this entry references
+        """
         # This form of item setting accesses the database
         if key in self.columns:
             self.refresh()

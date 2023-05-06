@@ -49,3 +49,15 @@ class DatabaseTests(unittest.TestCase):
         classes = user1.get("classes")  # This will only return the classes where the user is the teacher
         self.assertEqual(len(classes), 1)
 
+    def test_cascade(self):
+        self.load_values()
+        class1 = self.classes.get_row(class_id=1)
+        self.assertEqual(len(class1.get("participants")), 10)
+        del class1
+        self.users.delete(id=1)
+        self.assertEqual(self.users.get_row(id=1), None)
+        class1 = self.classes.get_row(class_id=1)
+        self.assertEqual(len(class1.get("participants")), 0)
+
+    # def test_update(self):
+
