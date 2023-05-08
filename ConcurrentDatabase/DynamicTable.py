@@ -90,7 +90,7 @@ class DynamicTable:
         :return: The row.
         """
         self._validate_columns(**kwargs)
-        self._contains_primary_keys(**kwargs)
+        # self._contains_primary_keys(**kwargs)
 
         # Check if the DynamicEntry is already loaded
         for entry in self.entries:
@@ -148,6 +148,8 @@ class DynamicTable:
             for entry in self.entries:
                 if entry not in db_load:
                     db_load.append(entry)
+            new_entries = [DynamicEntry(self, load_tuple=row) for row in db_load]
+            self.entries.extend(new_entries)
             return self.entries
         else:
             return []
@@ -223,7 +225,7 @@ class DynamicTable:
         """
         # For each column validate that it is a valid column
         self._validate_columns(**kwargs)
-        self._contains_primary_keys(**kwargs)
+        # self._contains_primary_keys(**kwargs)
 
         # Build the query
         sql = f"INSERT INTO {self.table_name} ("

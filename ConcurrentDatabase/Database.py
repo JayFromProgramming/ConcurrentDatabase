@@ -78,8 +78,10 @@ class TableLink:
         self.parent_table.child_tables.append(self.child_table)
 
     def has_link(self, table1, table2):
-        return (self.parent_table == table1 and self.child_table == table2) or \
-               (self.child_table == table1 and self.parent_table == table2)
+        return (self.parent_table.table_name == table1.table_name and
+                self.child_table.table_name == table2.table_name) or \
+               (self.child_table.table_name == table1.table_name and
+                self.parent_table.table_name == table2.table_name)
 
     def get_foreign_key(self, table):
         if table == self.parent_table:
@@ -214,7 +216,8 @@ class Database(sqlite3.Connection):
         # Check if the table exists
         if table_name not in self.tables:
             raise KeyError(f"Table {table_name} not found in database {self.database_name}")
-
+        logging.info(f"Upgrading table {table_name}"
+                     f" {self.table_version_table.get_row(table_name=table_name)['version']} -> {version}")
         # Update the table
         if update_query:
             for query in update_query:
@@ -275,7 +278,7 @@ class Database(sqlite3.Connection):
     def batch_transaction(self, transactions: list, *args, **kwargs) -> sqlite3.Cursor:
         """
         Run a batch of queries on the database with thread safety.
-        :param sql: The SQL queries to run.
+        :param transactions: The SQL queries to run.
         :param args: The arguments to pass to the query.
         :param kwargs: The keyword arguments to pass to the query.
         :return: A cursor object, use cursor.fetchall() to get the results. (The cursor is not thread safe)

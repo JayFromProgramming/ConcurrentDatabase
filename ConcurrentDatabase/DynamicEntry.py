@@ -17,6 +17,7 @@ class DynamicEntry:
         self._values = {}
         self._previous_values = {}
         self._dirty = False
+        self._deleted = False
 
         if load_tuple is not None:
             for i in range(len(load_tuple)):
@@ -179,7 +180,7 @@ class DynamicEntry:
         """
         primary_key_values = [self._values[column.name] for column in self.columns if column.primary_key]
         sql = f"DELETE FROM {self.table.table_name} WHERE {self._entry_where_clause()}"
-        self.database.run(sql, tuple(primary_key_values))
+        result = self.database.run(sql, primary_key_values)
         del self
 
     def is_dirty(self):
@@ -277,5 +278,5 @@ class DynamicEntry:
         """
         Called when the DynamicEntry object is garbage collected, flushes the entry to the database to prevent data loss
         """
-        if self._dirty:
+        if self._dirty and not self._deleted:
             self.flush()
