@@ -100,7 +100,7 @@ class ColumnWrapper:
         if value is None:
             return "NULL"
         elif self.type == "TEXT" or self.type == "STRING":
-            return f"'{value}'"
+            return "'" + str(value).replace('\'', '\'\'') + "'"
         elif self.type == "INTEGER" or self.type == "INT":
             return str(value)
         elif self.type == "BOOLEAN":
@@ -111,4 +111,4 @@ class ColumnWrapper:
             return str(value)
         else:
             logging.warning(f"Unknown column type {self.type}, assuming TEXT")
-            return f"'{value}'"
+            return "'" + str(value).replace('\'', '\'\'') + "'"

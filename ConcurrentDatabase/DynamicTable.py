@@ -239,7 +239,7 @@ class DynamicTable:
             self.database.run(sql, tuple(kwargs.values()))
         except sqlite3.IntegrityError as e:
             raise ValueError(f"Integrity error: {e}")
-        entry = DynamicEntry(self, **kwargs)
+        entry = self.get_row(**kwargs)
         self.entries.append(entry)
         return entry
 
@@ -271,7 +271,7 @@ class DynamicTable:
         """
         # For each column validate that it is a valid column and that the constraints are met.
         self._validate_columns(**kwargs)
-        self._contains_primary_keys(**kwargs)
+        # self._contains_primary_keys(**kwargs)
 
         entry = self.get_row(**kwargs)
 
