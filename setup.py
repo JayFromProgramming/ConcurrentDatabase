@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="ConcurrentDatabase",
-    version="0.0.7",
+    version="0.0.8",
     author="Jay S",
     author_email="",
     description="A SQLite wrapper that allows for object oriented database access.",

@@ -92,11 +92,6 @@ class DynamicTable:
         self._validate_columns(**kwargs)
         # self._contains_primary_keys(**kwargs)
 
-        # Check if the DynamicEntry is already loaded
-        for entry in self.entries:
-            if entry == kwargs:
-                return entry
-
         # Build the query
         sql = f"SELECT * FROM {self.table_name}"
         if len(kwargs) > 0:
@@ -107,6 +102,12 @@ class DynamicTable:
             sql = sql[:-5]
         result = self.database.get(sql)
         if result:
+
+            # Check if the DynamicEntry is already loaded
+            for entry in self.entries:  # TODO: Fix this hacky fix to a ghost entry bug
+                if entry.matches(**kwargs):
+                    return entry
+
             entry = DynamicEntry(self, load_tuple=result[0])
             self.entries.append(entry)
             return entry
@@ -273,10 +274,10 @@ class DynamicTable:
         self._validate_columns(**kwargs)
         # self._contains_primary_keys(**kwargs)
 
-        entry = self.get_row(**kwargs)
-
-        if entry:
-            self.entries.remove(entry)
+        for entry in self.entries:
+            if entry.matches(**kwargs):
+                self.entries.remove(entry)
+                del entry
 
         # Build the query
         sql = f"DELETE FROM {self.table_name}"
@@ -287,7 +288,12 @@ class DynamicTable:
                 sql += self._create_filter(column, kwargs[column]) + " AND "
             sql = sql[:-5]
         result = self.database.run(sql)
-        return result
+        if result.rowcount == 0:
+            raise ValueError(f"No rows were deleted from table [{self.table_name}]")
+        elif result.rowcount > 1:
+            raise ValueError(f"Multiple rows were deleted from table [{self.table_name}]")
+        else:
+            return result
 
     def delete_many(self, **kwargs):
         """

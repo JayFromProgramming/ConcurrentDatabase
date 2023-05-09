@@ -58,6 +58,46 @@ class DatabaseTests(unittest.TestCase):
         row = self.database.table_version_table.get_row(table_name="test_table")
         self.assertEqual(row, None)
 
+    def test_delete_entry(self):
+        table = self.database.get_table("test_table")
+        for i in range(1000):
+            table.add(id=i, random=i + 1, random2=i + 1, random3=i + 1)
+
+        table.flush()
+
+        result = self.database.get("SELECT count(*) FROM test_table")
+        self.assertEqual(result[0][0], 1000)
+
+        for i in range(1000):
+            row = table.get_row(id=i)
+            row.delete()
+
+        table.flush()
+
+        result = self.database.get("SELECT count(*) FROM test_table")
+        self.assertEqual(result[0][0], 0)
+
+        row = table.get_row(id=1)
+        self.assertEqual(row, None)
+
+    def test_delete_table(self):
+        table = self.database.create_table("test_table", {"id": "INTEGER", "random": "INTEGER", "random2": "INTEGER",
+                                                          "random3": "INTEGER"})
+        for i in range(1000):
+            table.add(id=i, random=i + 1, random2=i + 1, random3=i + 1)
+
+        result = self.database.get("SELECT count(*) FROM test_table")
+        self.assertEqual(result[0][0], 1000)
+
+        for i in range(1000):
+            table.delete(id=i)
+
+        result = self.database.get("SELECT count(*) FROM test_table")
+        self.assertEqual(result[0][0], 0)
+
+        row = table.get_row(id=1)
+        self.assertEqual(row, None)
+
     def test_cached_set(self):
         table = self.database.create_table("test_table", {"id": "INTEGER", "random": "INTEGER", "random2": "INTEGER",
                                                           "random3": "INTEGER"})

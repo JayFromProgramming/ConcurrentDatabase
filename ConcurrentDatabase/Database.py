@@ -84,9 +84,9 @@ class TableLink:
                 self.parent_table.table_name == table2.table_name)
 
     def get_foreign_key(self, table):
-        if table == self.parent_table:
+        if table.table_name == self.parent_table.table_name:
             return self.parent_key, self.child_key
-        elif table == self.child_table:
+        elif table.table_name == self.child_table.table_name:
             return self.child_key, self.parent_key
         else:
             raise ValueError(f"Table {table} is not linked to {self}")
@@ -246,6 +246,8 @@ class Database(sqlite3.Connection):
         self.table_version_table.delete(table_name=table_name)
         # del self.tables[table_name]
         self.tables.pop(table_name)
+        # del self.tables[table_name]
+        self._update_table_links()
 
     def run(self, sql, *args, **kwargs) -> sqlite3.Cursor:
         """

@@ -178,10 +178,23 @@ class DynamicEntry:
         Deletes the entry from the database
         :return:
         """
-        primary_key_values = [self._values[column.name] for column in self.columns if column.primary_key]
         sql = f"DELETE FROM {self.table.table_name} WHERE {self._entry_where_clause()}"
-        result = self.database.run(sql, primary_key_values)
+        self.database.run(sql)
         del self
+
+    def matches(self, **kwargs):
+        """
+        Checks if the entry matches the given criteria
+        :param kwargs: The criteria to check
+        :return: True if the entry matches the criteria, False otherwise
+        """
+        for key in kwargs:
+            if key in self.columns:
+                if self._values[key] != kwargs[key]:
+                    return False
+            else:
+                raise KeyError(f"Column {key} does not exist in table {self.table.table_name}")
+        return True
 
     def is_dirty(self):
         return self._dirty
@@ -271,6 +284,8 @@ class DynamicEntry:
                 if self._values[key] != other[key]:
                     return False
             return True
+        elif other is None:
+            return False
         else:
             raise TypeError(f"Cannot compare DynamicEntry to {type(other)}")
 
