@@ -196,6 +196,13 @@ class DynamicEntry:
                 raise KeyError(f"Column {key} does not exist in table {self.table.table_name}")
         return True
 
+    def to_dict(self):
+        """Converts the entry to a dictionary"""
+        dictionary = {}
+        for column in self.columns:
+            dictionary[column.name] = self._values[column.name]
+        return dictionary
+
     def is_dirty(self):
         return self._dirty
 

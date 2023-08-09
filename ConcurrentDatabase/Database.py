@@ -67,7 +67,7 @@ class TableLink:
         self.child_table = self.database.get_table(child)
         self.parent_table = self.database.get_table(pragma[2])
         self.child_key = self.child_table.get_column(pragma[3])
-        self.parent_key = self.parent_table.get_column(pragma[4])
+        self.parent_key = self.parent_table.get_column(pragma[4]) if pragma[4] is not None else None
         self.on_update = pragma[5]
         self.on_delete = pragma[6]
 
@@ -132,6 +132,8 @@ class Database(sqlite3.Connection):
             if result:
                 for row in result:
                     child_table = table_name
+                    if row[4] is None:
+                        continue
                     relations.append(TableLink(self, child_table, row))
         self.table_links = relations
 
