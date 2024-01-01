@@ -105,6 +105,8 @@ class DynamicTable:
 
             # Check if the DynamicEntry is already loaded
             for entry in self.entries:  # TODO: Fix this hacky fix to a ghost entry bug
+                if entry is None:
+                    continue
                 if entry.matches(**kwargs):
                     return entry
 
